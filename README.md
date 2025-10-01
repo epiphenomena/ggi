@@ -23,8 +23,8 @@ The CGI script supports editing source files and then generating the resulting s
 - **Template System**: Uses Go templates with base layout including header, content, footer, CSS, head and JS blocks
 - **Mobile Support**: Includes viewport meta tag for responsive design
 - **CSS/JS Helpers**: Provides helper functions for loading CSS and JS files
-- **Markdown Support**: Edit and render markdown content (using `markdown.ToHTML`)
-- **Form-based Data Management**: Generate forms from Go structs and save as JSON
+- **Markdown Support**: Edit and render markdown content (using `ggi.ToHTML`)
+- **Form-based Data Management**: Generate forms from Go structs and save as JSON (using `ggi.LoadData`, `ggi.SaveData`, etc.)
 - **Static Site Generation**: Compile templates to static HTML for both public and admin sections
 - **Security**: File access limited to current directory and subdirectories only
 

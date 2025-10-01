@@ -24,14 +24,24 @@ func JSScript(path string) template.HTML {
 	return template.HTML(`<script src="` + path + `"></script>`)
 }
 
-// CSSStyle generates an HTML style tag with content
-func CSSStyle(content string) template.HTML {
-	return template.HTML(`<style>` + content + `</style>`)
+// CSSStyleFile generates an HTML style tag by loading CSS content from a file
+func CSSStyleFile(filePath string) template.HTML {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		// If file reading fails, return an empty style tag
+		return template.HTML(`<style></style>`)
+	}
+	return template.HTML(`<style>` + string(content) + `</style>`)
 }
 
-// JSScriptContent generates an HTML script tag with content
-func JSScriptContent(content string) template.HTML {
-	return template.HTML(`<script>` + content + `</script>`)
+// JSScriptContentFile generates an HTML script tag by loading JS content from a file
+func JSScriptContentFile(filePath string) template.HTML {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		// If file reading fails, return an empty script tag
+		return template.HTML(`<script></script>`)
+	}
+	return template.HTML(`<script>` + string(content) + `</script>`)
 }
 
 

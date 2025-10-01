@@ -144,7 +144,6 @@ func GenerateFormFromStruct(data interface{}, action string) (string, error) {
 	formHTML := fmt.Sprintf(`
 <form method="post" action="%s">
     %s
-    <input type="hidden" name="token" value="">
     <input type="submit" value="Submit">
 </form>
 `, action, strings.Join(fields, "\n"))
