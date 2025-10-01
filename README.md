@@ -18,13 +18,14 @@ The CGI script supports editing source files and then generating the resulting s
 ## Features
 
 - **CGI Detection**: Automatically detects if running as CGI script or in development mode
-- **Authentication**: Uses a secret token system for form submissions
-- **Template System**: Uses Go templates with base layout including header, content, footer, CSS and JS blocks
-- **Modal Interface**: Built-in modal for settings and secret key management with localStorage integration
-- **Markdown Support**: Edit and render markdown content
+- **Public/Admin Structure**: Separates public site (at `/`) from admin UI (at `/admin` and below)
+- **Basic Auth Security**: Uses .htaccess to require authentication for admin section
+- **Template System**: Uses Go templates with base layout including header, content, footer, CSS, head and JS blocks
+- **Mobile Support**: Includes viewport meta tag for responsive design
+- **CSS/JS Helpers**: Provides helper functions for loading CSS and JS files
+- **Markdown Support**: Edit and render markdown content (using `markdown.ToHTML`)
 - **Form-based Data Management**: Generate forms from Go structs and save as JSON
-- **CSS Customization**: Dynamic CSS generation from configuration
-- **Static Site Generation**: Compile templates to static HTML
+- **Static Site Generation**: Compile templates to static HTML for both public and admin sections
 - **Security**: File access limited to current directory and subdirectories only
 
 ## Getting Started
@@ -45,9 +46,6 @@ import (
 )
 
 func main() {
-    // Set your secret key
-    ggi.SecretKey = "your_secret_key_here"
-
     // The library will automatically detect if it's running as CGI or in development mode
     if ggi.IsCGI() {
         // Handle as CGI script
@@ -65,19 +63,21 @@ See the [examples/basic-site](examples/basic-site) directory for a complete work
 
 ## Structure
 
-- `_source/templates/` - HTML templates for the site
-- `_source/resources/` - Static assets like CSS, JS, images  
+- `_source/public/templates/` - Public HTML templates for the site
+- `_source/admin/templates/` - Admin HTML templates for the admin UI
+- `_source/public/resources/` - Public static assets like CSS, JS, images  
+- `_source/admin/resources/` - Admin static assets
 - `_source/data/` - JSON files for structured data
-- `_source/markdown/` - Markdown content files
+- `_source/content/` - Markdown content files
 
 ## Security
 
 - All file operations are restricted to the current directory and subdirectories
-- Form submissions require a secret token for authentication
-- The .htaccess file generated blocks access to source directories
+- Admin section protected by HTTP Basic Authentication via .htaccess
+- The .htaccess file blocks access to source directories
 
 ## Development vs Production
 
 The library automatically detects if it's running as a CGI script or in development mode:
 - In development mode: runs as a web server for easy testing
-- As CGI: responds to POST requests with token authentication
+- As CGI: responds to form POSTs and AJAX requests in the admin section

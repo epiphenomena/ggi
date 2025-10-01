@@ -14,8 +14,8 @@ import (
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-// MarkdownToHTML converts markdown content to HTML
-func MarkdownToHTML(mdContent string) (string, error) {
+// ToHTML converts markdown content to HTML
+func ToHTML(mdContent string) (string, error) {
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 		goldmark.WithParserOptions(
@@ -80,7 +80,7 @@ func isSafePath(path string) bool {
 
 // RenderMarkdownPage renders a page with markdown content
 func RenderMarkdownPage(w io.Writer, title, mdContent string, data interface{}) error {
-	htmlContent, err := MarkdownToHTML(mdContent)
+	htmlContent, err := ToHTML(mdContent)
 	if err != nil {
 		return err
 	}

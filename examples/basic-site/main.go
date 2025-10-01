@@ -2,23 +2,14 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"ggi/pkg/ggi"
 )
-
-// Set secret key before any other initialization occurs
-func init() {
-	// For development, we can set the secret key from environment
-	if secret := os.Getenv("GGI_SECRET_KEY"); secret != "" {
-		ggi.SecretKey = secret
-	} else {
-		// Use a default for development
-		ggi.SecretKey = "dev_secret_key_for_testing"
-	}
-}
 
 // Example struct for form data
 type Contact struct {
@@ -38,108 +29,174 @@ func main() {
 }
 
 func handleCGI() {
-	// Only handle POST requests
+	// Handle both GET and POST requests for admin CGI script
 	requestMethod := os.Getenv("REQUEST_METHOD")
-	if requestMethod != "POST" {
-		fmt.Println("Status: 405 Method Not Allowed")
-		fmt.Println("Content-Type: text/plain")
-		fmt.Println()
-		fmt.Println("Only POST requests are allowed")
-		return
+	
+	// Read request body if it's a POST
+	var body []byte
+	var err error
+	if requestMethod == "POST" {
+		body, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Println("Status: 400 Bad Request")
+			fmt.Println("Content-Type: text/plain")
+			fmt.Println()
+			fmt.Println("Error reading request body")
+			return
+		}
 	}
 
-	// Read and parse the request
-	body := os.Getenv("CONTENT_LENGTH")
-	if body == "" {
-		body = "0"
+	// Create a mock request to process the form
+	req, err := http.NewRequest(requestMethod, "/", strings.NewReader(string(body)))
+	if err != nil {
+		fmt.Println("Status: 500 Internal Server Error")
+		fmt.Println("Content-Type: text/plain")
+		fmt.Println()
+		fmt.Println("Error creating request")
+		return
 	}
-	// For simplicity in this example, we'll just return a success message
+	
+	contentType := os.Getenv("CONTENT_TYPE")
+	if contentType == "" && requestMethod == "POST" {
+		contentType = "application/x-www-form-urlencoded"
+	}
+	req.Header.Set("Content-Type", contentType)
+	
+	if requestMethod == "POST" {
+		err = req.ParseForm()
+		if err != nil {
+			fmt.Println("Status: 400 Bad Request")
+			fmt.Println("Content-Type: text/plain")
+			fmt.Println()
+			fmt.Println("Error parsing form data")
+			return
+		}
+	}
+
+	// Process the request based on form action or path
+	action := req.FormValue("action")
+	
 	fmt.Println("Content-Type: text/html")
 	fmt.Println()
-	fmt.Println("<html><body><h1>CGI Request Processed</h1><p>Token authenticated successfully.</p></body></html>")
+	
+	switch action {
+	case "save_markdown":
+		content := req.FormValue("content")
+		filePath := req.FormValue("file_path")
+		if content != "" && filePath != "" {
+			// In a real implementation, save the markdown content
+			fmt.Println("<html><body><h1>Content Saved</h1><p>Markdown content has been saved.</p></body></html>")
+		} else {
+			fmt.Println("<html><body><h1>Error</h1><p>Missing content or file path.</p></body></html>")
+		}
+	case "save_contact":
+		name := req.FormValue("Name")
+		email := req.FormValue("Email")
+		phone := req.FormValue("Phone")
+		
+		// In a real implementation, save the contact data
+		fmt.Printf("<html><body><h1>Contact Saved</h1><p>Contact has been saved: %s</p></body></html>", name)
+	default:
+		// Default response for CGI script
+		fmt.Println("<html><body><h1>CGI Script Running</h1><p>Admin CGI script is working.</p></body></html>")
+	}
 }
 
 func handleDevServer() {
-	// For development, we'll set the secret key automatically
-	ggi.SecretKey = "dev_secret_key_for_testing"
+	// Handle admin section at /admin/
+	http.HandleFunc("/admin/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			err := r.ParseForm()
+			if err != nil {
+				http.Error(w, "Error parsing form", http.StatusBadRequest)
+				return
+			}
+		}
 
+		// Serve a simple admin test page
+		tmpl := `
+{{define "content"}}
+<h1>Admin Dashboard</h1>
+<p>This is the admin section for site management.</p>
+
+<h2>Edit Markdown Content</h2>
+<form method="post" action="/admin/save">
+    <input type="hidden" name="action" value="save_markdown">
+    <div>
+        <label for="file_path">File Path:</label>
+        <input type="text" name="file_path" id="file_path" value="content/main.md">
+    </div>
+    <div>
+        <label for="content">Content:</label>
+        <textarea name="content" id="content" rows="10" cols="50"># Editable content</textarea>
+    </div>
+    <button type="submit">Save Content</button>
+</form>
+
+<h2>Edit Contact Form</h2>
+<form method="post" action="/admin/save">
+    <input type="hidden" name="action" value="save_contact">
+    <div>
+        <label for="Name">Name:</label>
+        <input type="text" name="Name" id="Name">
+    </div>
+    <div>
+        <label for="Email">Email:</label>
+        <input type="email" name="Email" id="Email">
+    </div>
+    <div>
+        <label for="Phone">Phone:</label>
+        <input type="text" name="Phone" id="Phone">
+    </div>
+    <button type="submit">Save Contact</button>
+</form>
+{{end}}
+`
+		parsedTmpl, err := ggi.ParseTemplate(tmpl)
+		if err != nil {
+			http.Error(w, "Error parsing template", http.StatusInternalServerError)
+			return
+		}
+
+		context := map[string]interface{}{
+			"Title": "Admin Dashboard",
+		}
+
+		err = parsedTmpl.ExecuteTemplate(w, "base", context)
+		if err != nil {
+			http.Error(w, "Error executing template", http.StatusInternalServerError)
+		}
+	})
+
+	// Handle public site at root and under
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/edit-contact" {
-			if r.Method == "POST" {
-				err := r.ParseForm()
-				if err != nil {
-					http.Error(w, "Error parsing form", http.StatusBadRequest)
-					return
-				}
+		if r.URL.Path != "/" {
+			// For other paths in public site, return 404 for now
+			http.NotFound(w, r)
+			return
+		}
+		
+		// Serve public site
+		tmpl := `
+{{define "content"}}
+<h1>Welcome to the Public Site</h1>
+<p>This is the public-facing part of the website.</p>
+<p><a href="/admin/">Admin Panel</a></p>
+{{end}}
+`
+		parsedTmpl, err := ggi.ParseTemplate(tmpl)
+		if err != nil {
+			http.Error(w, "Error parsing template", http.StatusInternalServerError)
+			return
+		}
 
-				token := r.FormValue("token")
-				if token != ggi.SecretKey {
-					http.Error(w, "Invalid token", http.StatusUnauthorized)
-					return
-				}
+		context := map[string]interface{}{
+			"Title": "Public Site",
+		}
 
-				// Process form data
-				name := r.FormValue("Name")
-				email := r.FormValue("Email")
-				phone := r.FormValue("Phone")
-
-				// In a real implementation, save to JSON file
-				contact := Contact{Name: name, Email: email, Phone: phone}
-				err = ggi.SaveData([]Contact{contact}, "examples/basic-site/_source/data/contacts.json")
-				if err != nil {
-					http.Error(w, "Error saving data", http.StatusInternalServerError)
-					return
-				}
-
-				// Render success page
-				ggi.RenderMarkdownPage(w, "Contact Saved", fmt.Sprintf("# Contact Saved\n\nName: %s\n\nEmail: %s\n\nPhone: %s", name, email, phone), nil)
-			} else {
-				// Show form
-				contact := Contact{}
-				ggi.RenderDataFormPage(w, "Edit Contact", "/edit-contact", contact)
-			}
-		} else if r.URL.Path == "/edit-markdown" {
-			if r.Method == "POST" {
-				err := r.ParseForm()
-				if err != nil {
-					http.Error(w, "Error parsing form", http.StatusBadRequest)
-					return
-				}
-
-				token := r.FormValue("token")
-				if token != ggi.SecretKey {
-					http.Error(w, "Invalid token", http.StatusUnauthorized)
-					return
-				}
-
-				// Save markdown content
-				content := r.FormValue("content")
-				err = ggi.SaveMarkdown(content, "examples/basic-site/_source/markdown/home.md")
-				if err != nil {
-					http.Error(w, "Error saving markdown", http.StatusInternalServerError)
-					return
-				}
-
-				// Render the saved content
-				ggi.RenderMarkdownPage(w, "Markdown Saved", content, nil)
-			} else {
-				// Load existing content
-				content, err := ggi.LoadMarkdown("examples/basic-site/_source/markdown/home.md")
-				if err != nil {
-					content = "# Welcome\n\nEdit this content..."
-				}
-
-				// Show markdown editor
-				showMarkdownEditor(w, content)
-			}
-		} else if r.URL.Path == "/settings" {
-			// This page will show the settings modal automatically
-			showSettingsPage(w)
-		} else {
-			// Serve a simple test page
-			// The base template already includes the modal, so we just need to trigger it
-			homeContent := "# Welcome to GGI Example Site\n\nThis is a test page.\n\n- [Edit a contact form](/edit-contact)\n- [Edit markdown content](/edit-markdown)\n- [Settings](/settings) (click to open modal)"
-			ggi.RenderMarkdownPage(w, "GGI Example Site", homeContent, nil)
+		err = parsedTmpl.ExecuteTemplate(w, "base", context)
+		if err != nil {
+			http.Error(w, "Error executing template", http.StatusInternalServerError)
 		}
 	})
 
@@ -150,104 +207,4 @@ func handleDevServer() {
 
 	log.Printf("Development server starting on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
-}
-
-func showMarkdownEditor(w http.ResponseWriter, content string) {
-	// The base template already includes the modal, so we just need to include it in our template
-	tmpl := `
-{{define "content"}}
-<h2>Edit Markdown Content</h2>
-<form method="post" action="/edit-markdown">
-    <div class="form-field">
-        <textarea name="content" rows="20" cols="80">` + content + `</textarea>
-    </div>
-    <input type="hidden" name="token" value="">
-    <input type="submit" value="Save Markdown">
-</form>
-{{end}}
-
-{{define "js"}}
-<script>
-// Re-include the modal functionality if needed
-document.addEventListener("DOMContentLoaded", function() {
-    // Add secret key to forms automatically
-    var forms = document.getElementsByTagName("form");
-    for (var i = 0; i < forms.length; i++) {
-        var form = forms[i];
-        if (!form.querySelector("[name='token']")) {
-            var tokenInput = document.createElement("input");
-            tokenInput.type = "hidden";
-            tokenInput.name = "token";
-            tokenInput.value = localStorage.getItem("ggi_secret_key") || "";
-            form.appendChild(tokenInput);
-        }
-    }
-
-    // Add event listener to all submit buttons to ensure token is current
-    var submitButtons = document.querySelectorAll("input[type='submit'], button[type='submit']");
-    for (var i = 0; i < submitButtons.length; i++) {
-        submitButtons[i].addEventListener("click", function(e) {
-            var form = e.target.closest("form");
-            if (form) {
-                var tokenInput = form.querySelector("[name='token']");
-                if (tokenInput) {
-                    tokenInput.value = localStorage.getItem("ggi_secret_key") || "";
-                }
-            }
-        });
-    }
-});
-</script>
-{{end}}
-`
-
-	parsedTmpl, err := ggi.ParseTemplate(tmpl)
-	if err != nil {
-		http.Error(w, "Error parsing template", http.StatusInternalServerError)
-		return
-	}
-
-	context := map[string]interface{}{
-		"Title": "Edit Markdown",
-	}
-
-	err = parsedTmpl.ExecuteTemplate(w, "base", context)
-	if err != nil {
-		http.Error(w, "Error executing template", http.StatusInternalServerError)
-	}
-}
-
-func showSettingsPage(w http.ResponseWriter) {
-	// The modal is already part of the base template, so we just need to trigger it
-	tmpl := `
-{{define "content"}}
-<h2>Settings</h2>
-<p>Click the gear icon or link below to open the settings modal to manage your secret key:</p>
-<p><a href="javascript:void(0)" onclick="document.getElementById('secretKeyModal').style.display='block'">Open Settings Modal</a></p>
-{{end}}
-
-{{define "js"}}
-<script>
-// Open the modal when the page loads
-document.addEventListener("DOMContentLoaded", function() {
-    document.getElementById('secretKeyModal').style.display='block';
-});
-</script>
-{{end}}
-`
-
-	parsedTmpl, err := ggi.ParseTemplate(tmpl)
-	if err != nil {
-		http.Error(w, "Error parsing template", http.StatusInternalServerError)
-		return
-	}
-
-	context := map[string]interface{}{
-		"Title": "Settings",
-	}
-
-	err = parsedTmpl.ExecuteTemplate(w, "base", context)
-	if err != nil {
-		http.Error(w, "Error executing template", http.StatusInternalServerError)
-	}
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"ggi/pkg/ggi"
-	"ggi/pkg/ggi/templates"
 	"io"
 	"log"
 	"net/http"
@@ -12,11 +11,6 @@ import (
 )
 
 func main() {
-	// Set the secret key from environment or use the default
-	if secret := os.Getenv("GGI_SECRET_KEY"); secret != "" {
-		ggi.SecretKey = secret
-	}
-
 	if ggi.IsCGI() {
 		// Handle as CGI script
 		handleCGI()
@@ -27,27 +21,25 @@ func main() {
 }
 
 func handleCGI() {
-	// Only handle POST requests
-	if os.Getenv("REQUEST_METHOD") != "POST" {
-		fmt.Println("Status: 405 Method Not Allowed")
-		fmt.Println("Content-Type: text/plain")
-		fmt.Println()
-		fmt.Println("Only POST requests are allowed")
-		return
+	// Handle both GET and POST requests for admin CGI script
+	requestMethod := os.Getenv("REQUEST_METHOD")
+	
+	// Read request body if it's a POST
+	var body []byte
+	if requestMethod == "POST" {
+		var err error
+		body, err = io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Println("Status: 400 Bad Request")
+			fmt.Println("Content-Type: text/plain")
+			fmt.Println()
+			fmt.Println("Error reading request body")
+			return
+		}
 	}
 
-	// Read the request body
-	body, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		fmt.Println("Status: 400 Bad Request")
-		fmt.Println("Content-Type: text/plain")
-		fmt.Println()
-		fmt.Println("Error reading request body")
-		return
-	}
-
-	// Create a mock request to parse the form
-	req, err := http.NewRequest("POST", "/", strings.NewReader(string(body)))
+	// Create a mock request to process the form
+	req, err := http.NewRequest(requestMethod, "/", strings.NewReader(string(body)))
 	if err != nil {
 		fmt.Println("Status: 500 Internal Server Error")
 		fmt.Println("Content-Type: text/plain")
@@ -57,59 +49,113 @@ func handleCGI() {
 	}
 	
 	contentType := os.Getenv("CONTENT_TYPE")
-	if contentType == "" {
+	if contentType == "" && requestMethod == "POST" {
 		contentType = "application/x-www-form-urlencoded"
 	}
 	req.Header.Set("Content-Type", contentType)
 	
-	err = req.ParseForm()
-	if err != nil {
-		fmt.Println("Status: 400 Bad Request")
-		fmt.Println("Content-Type: text/plain")
-		fmt.Println()
-		fmt.Println("Error parsing form data")
-		return
-	}
-	
-	token := req.FormValue("token")
-	if token != ggi.SecretKey {
-		fmt.Println("Status: 401 Unauthorized")
-		fmt.Println("Content-Type: text/plain")
-		fmt.Println()
-		fmt.Println("Invalid token")
-		return
+	if requestMethod == "POST" {
+		err = req.ParseForm()
+		if err != nil {
+			fmt.Println("Status: 400 Bad Request")
+			fmt.Println("Content-Type: text/plain")
+			fmt.Println()
+			fmt.Println("Error parsing form data")
+			return
+		}
 	}
 
-	// Process the request - this is where you'd add specific handlers
-	// based on the form action or other parameters
+	// Process the request based on form action or path
+	action := req.FormValue("action")
+	
 	fmt.Println("Content-Type: text/html")
 	fmt.Println()
-	fmt.Println("<html><body><h1>CGI Request Processed</h1><p>Token authenticated successfully.</p></body></html>")
+	
+	switch action {
+	case "save_markdown":
+		content := req.FormValue("content")
+		filePath := req.FormValue("file_path")
+		if content != "" && filePath != "" {
+			// In a real implementation, save the markdown content
+			fmt.Println("<html><body><h1>Content Saved</h1><p>Markdown content has been saved.</p></body></html>")
+		} else {
+			fmt.Println("<html><body><h1>Error</h1><p>Missing content or file path.</p></body></html>")
+		}
+	default:
+		// Default response for CGI script
+		fmt.Println("<html><body><h1>CGI Script Running</h1><p>Admin CGI script is working.</p></body></html>")
+	}
 }
 
 func handleDevServer() {
-	// For development, we'll set the secret key automatically
-	ggi.SecretKey = "dev_secret_key_for_testing"
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// For development, allow access without token for GET requests
-		// but require token for POST requests
+	http.HandleFunc("/admin/", func(w http.ResponseWriter, r *http.Request) {
+		// For development, serve admin pages
 		if r.Method == "POST" {
 			err := r.ParseForm()
 			if err != nil {
 				http.Error(w, "Error parsing form", http.StatusBadRequest)
 				return
 			}
-
-			token := r.FormValue("token")
-			if token != ggi.SecretKey {
-				http.Error(w, "Invalid token", http.StatusUnauthorized)
-				return
-			}
 		}
 
-		// Serve a simple test page
-		templates.RenderMarkdownPage(w, "Development Server", "# Welcome to GGI Development Server\n\nThis is a test page.", nil)
+		// Serve a simple admin test page
+		tmpl := `
+{{define "content"}}
+<h1>Admin Dashboard</h1>
+<p>This is the admin section for site management.</p>
+<form method="post" action="/admin/save">
+    <input type="hidden" name="action" value="save_markdown">
+    <div>
+        <label for="file_path">File Path:</label>
+        <input type="text" name="file_path" id="file_path" value="content/main.md">
+    </div>
+    <div>
+        <label for="content">Content:</label>
+        <textarea name="content" id="content" rows="10" cols="50"># Editable content</textarea>
+    </div>
+    <button type="submit">Save Content</button>
+</form>
+{{end}}
+`
+		parsedTmpl, err := ggi.ParseTemplate(tmpl)
+		if err != nil {
+			http.Error(w, "Error parsing template", http.StatusInternalServerError)
+			return
+		}
+
+		context := map[string]interface{}{
+			"Title": "Admin Dashboard",
+		}
+
+		err = parsedTmpl.ExecuteTemplate(w, "base", context)
+		if err != nil {
+			http.Error(w, "Error executing template", http.StatusInternalServerError)
+		}
+	})
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Serve public site
+		tmpl := `
+{{define "content"}}
+<h1>Welcome to the Public Site</h1>
+<p>This is the public-facing part of the website.</p>
+<p><a href="/admin/">Admin Panel</a></p>
+{{end}}
+`
+		parsedTmpl, err := ggi.ParseTemplate(tmpl)
+		if err != nil {
+			http.Error(w, "Error parsing template", http.StatusInternalServerError)
+			return
+		}
+
+		context := map[string]interface{}{
+			"Title": "Public Site",
+		}
+
+		err = parsedTmpl.ExecuteTemplate(w, "base", context)
+		if err != nil {
+			http.Error(w, "Error executing template", http.StatusInternalServerError)
+		}
 	})
 
 	port := os.Getenv("PORT")

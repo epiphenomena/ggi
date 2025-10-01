@@ -3,25 +3,17 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 
 	"ggi/pkg/ggi"
 )
 
 func main() {
-	// Set secret key as required by the ggi package
-	if secret := os.Getenv("GGI_SECRET_KEY"); secret != "" {
-		ggi.SecretKey = secret
-	} else {
-		// Use a default key for the build process
-		ggi.SecretKey = "build_secret_key"
-	}
-
-	// Example of using the build functionality
+	// Example of using the build functionality with separate public and admin sections
 	config := ggi.BuildConfig{
-		SourceDir: "examples/basic-site/_source",
-		OutputDir: "examples/basic-site/_output", 
-		BaseURL:   "",
+		PublicSourceDir: "examples/basic-site/_source/public",
+		AdminSourceDir:  "examples/basic-site/_source/admin",
+		OutputDir:       "examples/basic-site/_output", 
+		BaseURL:         "",
 	}
 
 	fmt.Println("Starting build process...")
