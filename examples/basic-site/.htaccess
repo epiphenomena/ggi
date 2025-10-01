@@ -1,0 +1,17 @@
+# .htaccess file for GGI site
+# Security: Block access to source files and configuration
+
+# Block access to the source directory
+RewriteRule ^_source/ - [F,L]
+
+# Block access to any files starting with underscore
+RewriteRule ^_.*$ - [F,L]
+
+# Handle CGI script routing
+Options +ExecCGI
+AddHandler cgi-script .cgi .pl .py .php
+
+# If the requested file doesn't exist, route to the CGI script
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ /ggi.cgi [QSA,L]
