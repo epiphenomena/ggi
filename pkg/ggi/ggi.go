@@ -2,8 +2,56 @@ package ggi
 
 import (
 	"html/template"
+	"io"
 	"os"
 )
+
+// ContentType represents a type of content that can be managed
+type ContentType interface {
+	// Name returns the identifier for this content type
+	Name() string
+	
+	// AdminForm generates the HTML form for editing this content type
+	AdminForm(contentPath string) (string, error)
+	
+	// Save processes and saves the form data for this content type
+	Save(contentPath string, formData map[string]string) error
+	
+	// Load loads content for use in templates
+	Load(contentPath string) (interface{}, error)
+	
+	// TemplateName returns the name of the template to use for displaying this content
+	TemplateName() string
+}
+
+// contentTypes holds the registered content types
+var contentTypes = make(map[string]ContentType)
+
+// RegisterContentType registers a new content type with GGI
+func RegisterContentType(ct ContentType) {
+	contentTypes[ct.Name()] = ct
+}
+
+// GetContentType returns the content type with the given name
+func GetContentType(name string) (ContentType, bool) {
+	ct, exists := contentTypes[name]
+	return ct, exists
+}
+
+// GetAllContentTypes returns all registered content types
+func GetAllContentTypes() map[string]ContentType {
+	return contentTypes
+}
+
+// BuildConfig holds the configuration for the build process
+type BuildConfig struct {
+	PublicTemplatesDir  string // Directory containing public page templates
+	AdminTemplatesDir   string // Directory containing admin page templates  
+	ContentDir          string // Directory containing source content files
+	OutputDir           string // Directory for generated static HTML
+	EnableAdmin         bool   // Whether to generate admin UI
+	EnableCGI           bool   // Whether to generate CGI script
+}
 
 // IsCGI checks if the program is running as a CGI script
 func IsCGI() bool {
@@ -99,5 +147,27 @@ func ParseTemplate(tmpl string) (*template.Template, error) {
 	// Create a new template based on the base
 	t := template.Must(baseTmpl.Clone())
 	return template.Must(t.New("page").Parse(tmpl)), nil
+}
+
+// RenderPage renders a page using the base template
+func RenderPage(w io.Writer, title string, content template.HTML, data interface{}) error {
+	tmpl := `
+{{define "content"}}
+` + string(content) + `
+{{end}}
+`
+
+	parsedTmpl, err := ParseTemplate(tmpl)
+	if err != nil {
+		return err
+	}
+
+	context := map[string]interface{}{
+		"Title":   title,
+		"Content": content,
+		"Data":    data,
+	}
+
+	return parsedTmpl.ExecuteTemplate(w, "base", context)
 }
 

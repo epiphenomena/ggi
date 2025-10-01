@@ -1,83 +1,91 @@
 # GGI (Go Generated Interfaces)
-Go lang library that combines a simple static site generator with a CGI-based editor
+A foundation library for building custom static sites with auto-generated admin interfaces
 
-The fastest and easiest site to serve is static html. But it's complicated for normal users to edit and does not support templating elements that are repeated within a page or across pages. 
+## Overview
 
-SSGs are a solution to the templating problem, but require learning and conforming to their idiosyncrasies. 
+GGI is a Go library that provides a foundation for creating custom static websites with content management capabilities. Rather than being a generic CMS, GGI serves as a toolkit that professionals can import into their own "generator" packages to build highly customized static sites with personalized admin interfaces.
 
-There are admin UI's (notably Wordpress) that attempt to make it easier for users to edit content without needing to understand the tech stack.
+The core idea is that a professional creates a separate Go package (the "generator") that imports GGI and defines:
+- The site's structure and templates
+- Which content areas should be editable by end users
+- How different content types should be handled and displayed
 
-However, both SSGs and the admin UIs necessarily develop a great deal of complexity in order to support a wide range of use cases.
+The generator package can then be run to produce:
+- An initial `_source/` directory containing editable content
+- Public static HTML pages based on the templates and content
+- Admin UI static HTML pages for content editing
+- A CGI script that handles content updates from the admin UI
 
-LLMs make creating customized websites and customized admin UIs easy. The goal of this project is to create a simple go lang based library to support an LLM driven website creation and maintenance.
+## Architecture
 
-The idea is to import this library into a new website project, add the needed customizations for that project, and then compile to single binary that acts as a CGI script.
+### The Generator Pattern
 
-The CGI script supports editing source files and then generating the resulting static html.
+```
+[Generator Package] 
+    ├── imports GGI library
+    ├── defines content types and editable areas
+    ├── specifies templates and styling
+    └── runs build to generate site
 
-## Features
+[Generated Output]
+    ├── _source/           # Editable content files
+    ├── public/            # Static public site
+    ├── admin/             # Static admin UI  
+    └── admin.cgi          # CGI script for handling updates
+```
 
-- **CGI Detection**: Automatically detects if running as CGI script or in development mode
-- **Public/Admin Structure**: Separates public site (at `/`) from admin UI (at `/admin` and below)
-- **Basic Auth Security**: Uses .htaccess to require authentication for admin section
-- **Template System**: Uses Go templates with base layout including header, content, footer, CSS, head and JS blocks
-- **Mobile Support**: Includes viewport meta tag for responsive design
-- **CSS/JS Helpers**: Provides helper functions for loading CSS and JS files
-- **Markdown Support**: Edit and render markdown content (using `ggi.ToHTML`)
-- **Form-based Data Management**: Generate forms from Go structs and save as JSON (using `ggi.LoadData`, `ggi.SaveData`, etc.)
-- **Static Site Generation**: Compile templates to static HTML for both public and admin sections
-- **Security**: File access limited to current directory and subdirectories only
+### Content Type System
+
+GGI provides a content type registration system where professionals can register different types of editable content:
+
+- **Markdown content**: Text areas for users to write in Markdown format
+- **JSON data structures**: Structured data edited through forms
+- **Media files**: Images and other media that can be uploaded/replaced
+- **Custom content types**: Any specialized content with custom handlers
+
+### Auto-Generated Admin UI
+
+Based on registered content types, GGI automatically generates:
+
+- Admin pages for each content type
+- Forms with appropriate input fields (text areas for Markdown, form fields for JSON, upload fields for media)
+- Management interfaces for adding, editing, and deleting content
+
+## Key Features
+
+- **Content Type Registration**: Define custom content types with appropriate handlers
+- **Auto-Generated Admin UI**: Forms and interfaces created automatically based on content definitions
+- **Static Site Generation**: Compile templates and content into static HTML
+- **CGI Integration**: Automatic CGI script generation for content updates
+- **Extensible Design**: Hooks for custom build processes and content handling
+- **Security**: File access limited to appropriate directories only
+- **Fast Static Output**: Generated sites are pure static HTML for optimal performance
+
+## How It Works
+
+1. **Professional creates a generator package** that imports GGI and defines their site
+2. **Content types are registered** with appropriate handlers and templates
+3. **Build process is run** to generate the initial site structure
+4. **Generated site is deployed** to a web server with .htaccess for security
+5. **End users access admin UI** to edit pre-defined content areas
+6. **CGI script processes updates** and regenerates static pages
+
+## Benefits
+
+- **Lightweight**: No heavy CMS overhead - just static HTML
+- **Fast**: Pure static output for optimal performance
+- **Secure**: Content editing through controlled CGI interface
+- **Customizable**: Highly tailored to specific site needs
+- **Maintainable**: Professionals can make structural changes and regenerate
+
+## Use Cases
+
+GGI is ideal for creating websites where:
+- Static HTML performance is important
+- Specific content areas need to be editable by non-technical users
+- A custom, lightweight solution is preferred over a generic CMS
+- An LLM can be used to generate the specialized code with GGI as a foundation
 
 ## Getting Started
 
-### Installation
-
-```bash
-go get ggi
-```
-
-### Basic Usage
-
-```go
-package main
-
-import (
-    "ggi/pkg/ggi"
-)
-
-func main() {
-    // The library will automatically detect if it's running as CGI or in development mode
-    if ggi.IsCGI() {
-        // Handle as CGI script
-        handleCGI()
-    } else {
-        // Start development server
-        handleDevServer()
-    }
-}
-```
-
-### Example
-
-See the [examples/basic-site](examples/basic-site) directory for a complete working example.
-
-## Structure
-
-- `_source/public/templates/` - Public HTML templates for the site
-- `_source/admin/templates/` - Admin HTML templates for the admin UI
-- `_source/public/resources/` - Public static assets like CSS, JS, images  
-- `_source/admin/resources/` - Admin static assets
-- `_source/data/` - JSON files for structured data
-- `_source/content/` - Markdown content files
-
-## Security
-
-- All file operations are restricted to the current directory and subdirectories
-- Admin section protected by HTTP Basic Authentication via .htaccess
-- The .htaccess file blocks access to source directories
-
-## Development vs Production
-
-The library automatically detects if it's running as a CGI script or in development mode:
-- In development mode: runs as a web server for easy testing
-- As CGI: responds to form POSTs and AJAX requests in the admin section
+Professionals should create their own generator package that imports GGI, defines their content structure, and uses the build system to generate their custom site.
