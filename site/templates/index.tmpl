@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{.SiteTitle}}</title>
+    <link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+    <header>
+        <h1>{{.SiteTitle}}</h1>
+        <nav>
+            <a href="/">Home</a>
+            <a href="/about">About</a>
+            <a href="/portfolio">Portfolio</a>
+            <a href="/contact">Contact</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <h2>Welcome to {{.SiteTitle}}</h2>
+            <p>{{.WelcomeText}}</p>
+        </section>
+
+        {{if .aboutText}}
+        <section class="about">
+            <h3>About Us</h3>
+            <p>{{.aboutText}}</p>
+        </section>
+        {{end}}
+
+        {{if .portfolio}}
+        <section class="portfolio">
+            <h3>Our Portfolio</h3>
+            <div class="projects">
+            {{range .portfolio}}
+                <div class="project">
+                    <h4>{{.title}}</h4>
+                    <p>{{.description}}</p>
+                    {{if .image}}<img src="{{.image}}" alt="{{.title}}" />{{end}}
+                </div>
+            {{end}}
+            </div>
+        </section>
+        {{end}}
+    </main>
+
+    <footer>
+        <p>&copy; {{.CurrentYear}} {{.SiteTitle}}. All rights reserved.</p>
+        {{if .ContactInfo}}
+        <p>Contact: {{.ContactInfo.email}}, {{.ContactInfo.phone}}</p>
+        {{end}}
+    </footer>
+
+    <script src="/js/site.js"></script>
+</body>
+</html>

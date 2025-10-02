@@ -1,0 +1,13 @@
+# Protect data directory from web access
+<Directory "data">
+    Order Deny,Allow
+    Deny from all
+</Directory>
+
+# Require BasicAuth for admin.cgi access
+<Files "admin.cgi">
+    AuthType Basic
+    AuthName "GGI Admin Interface"
+    AuthUserFile /path/to/.htpasswd
+    Require valid-user
+</Files>

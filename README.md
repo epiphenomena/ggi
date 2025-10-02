@@ -73,3 +73,54 @@ As an example:
   - markdown
   - replace media by uploading
   - edit json by having appropriate inputs for values labelled by their key (and handling nested objects / arrays)
+
+## Getting Started
+
+### Prerequisites
+- Go 1.16 or higher (for embed functionality)
+
+### Development
+1. Clone the repository
+2. Run development server: `go run *.go --serve`
+3. Visit http://localhost:8080/admin.cgi to access the admin interface
+4. Edit templates in `/site/templates/` and data in `/public/data/` as needed
+
+### Building the Site
+- Build the static site: `go run *.go --build`
+- The site files will be generated in the `/public` directory
+
+### Building for Production
+1. Build the admin CGI binary: `go build -o public/admin.cgi`
+2. Make it executable: `chmod +x public/admin.cgi`
+3. Upload the contents of `/public` to your web server
+4. Configure your web server to handle CGI requests to admin.cgi
+5. Set up BasicAuth using the .htaccess file provided
+
+## Implementation Details
+
+### Build Process
+The build process:
+1. Embeds resources from `/site` directory (CSS, JS, templates)
+2. Reads data files from `/public/data/`
+3. Processes templates with data to generate static HTML
+4. Places generated files in `/public/` directory
+
+### Data File Handling
+- JSON files are parsed and made available to templates
+- Markdown files are rendered to HTML
+- Media files are copied directly to the public directory
+- Form submissions update the corresponding data files
+
+### Admin Interface Features
+- File browser for data files
+- Type-appropriate editors (JSON editor for .json, text editor for .md/.txt)
+- Site rebuild after successful updates
+- Mobile-responsive design
+
+## Example Workflow
+
+1. Create a new JSON file in `/public/data/` (e.g., `site.json`) with your site data
+2. Update `/site/templates/index.tmpl` to use your data variables
+3. Run `go run *.go --build` to generate the site
+4. The site will be built in the `/public/` directory with your data populated
+5. Use the admin interface to edit your data files through the web interface
