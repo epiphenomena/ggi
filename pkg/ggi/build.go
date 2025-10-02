@@ -108,22 +108,20 @@ func generateAdminUI(config BuildConfig) error {
 		return err
 	}
 
-	// Generate main admin dashboard
+	// For static site generation, we would pre-generate admin UI pages
+	// based on the registered content types. For now, we'll create a
+	// basic admin interface as an example.
+	
+	// Create a basic admin dashboard
 	adminDashboard := `
 {{define "content"}}
 <h1>Site Administration</h1>
 <div class="admin-nav">
 	<h2>Content Management</h2>
 	<ul>
-`
-	
-	// Add links for each content type
-	for _, ct := range GetAllContentTypes() {
-		// For each content type, we'll create a management page
-		adminDashboard += fmt.Sprintf(`<li><a href="/admin/manage?type=%s">Manage %s Content</a></li>`, ct.Name(), ct.Name())
-	}
-	
-	adminDashboard += `
+		<li><a href="/admin/markdown">Manage Markdown Content</a></li>
+		<li><a href="/admin/json">Manage JSON Data</a></li>
+		<li><a href="/admin/media">Manage Media Files</a></li>
 	</ul>
 </div>
 {{end}}
@@ -149,88 +147,7 @@ func generateAdminUI(config BuildConfig) error {
 		return err
 	}
 
-	// Generate content management pages for each content type
-	for _, ct := range GetAllContentTypes() {
-		// Create a management page for this content type
-		managePagePath := filepath.Join(adminDir, fmt.Sprintf("%s.html", ct.Name()))
-		managePageContent := fmt.Sprintf(`
-{{define "content"}}
-<h1>Manage %s Content</h1>
-<div class="content-management">
-	%s
-</div>
-{{end}}
-`, ct.Name(), getContentTypeAdminForm(ct.Name()))
-
-		manageTmpl, err := ParseTemplate(managePageContent)
-		if err != nil {
-			return err
-		}
-
-		manageFile, err := os.Create(managePagePath)
-		if err != nil {
-			return err
-		}
-		defer manageFile.Close()
-
-		manageData := map[string]interface{}{
-			"Title": fmt.Sprintf("Manage %s Content", ct.Name()),
-		}
-
-		if err := manageTmpl.ExecuteTemplate(manageFile, "base", manageData); err != nil {
-			return err
-		}
-	}
-
 	return nil
-}
-
-// getContentTypeAdminForm returns a placeholder form for the given content type
-func getContentTypeAdminForm(contentType string) string {
-	switch contentType {
-	case "markdown":
-		return `
-<form method="post" action="/admin/save">
-	<input type="hidden" name="content_type" value="markdown">
-	<input type="hidden" name="content_path" value="_source/content/content.md">
-	<div>
-		<label for="content">Markdown Content:</label>
-		<textarea name="content" id="content" rows="15" cols="80"># New Content
-
-Edit this content in Markdown format.</textarea>
-	</div>
-	<button type="submit">Save Content</button>
-</form>
-`
-	case "json":
-		return `
-<form method="post" action="/admin/save">
-	<input type="hidden" name="content_type" value="json">
-	<input type="hidden" name="content_path" value="_source/data/data.json">
-	<div>
-		<label for="content">JSON Data:</label>
-		<textarea name="content" id="content" rows="15" cols="80">{
-    "items": []
-}</textarea>
-	</div>
-	<button type="submit">Save Data</button>
-</form>
-`
-	case "media":
-		return `
-<form method="post" action="/admin/save" enctype="multipart/form-data">
-	<input type="hidden" name="content_type" value="media">
-	<input type="hidden" name="content_path" value="_source/media/upload">
-	<div>
-		<label for="file">Upload Media File:</label>
-		<input type="file" name="file" id="file" accept="image/*">
-	</div>
-	<button type="submit">Upload File</button>
-</form>
-`
-	default:
-		return "<p>Management form not available for this content type.</p>"
-	}
 }
 
 // generatePublicSite generates the public-facing static site from templates and content

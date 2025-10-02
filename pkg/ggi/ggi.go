@@ -12,35 +12,16 @@ type ContentType interface {
 	Name() string
 	
 	// AdminForm generates the HTML form for editing this content type
-	AdminForm(contentPath string) (string, error)
+	AdminForm() (string, error)
 	
 	// Save processes and saves the form data for this content type
-	Save(contentPath string, formData map[string]string) error
+	Save(formData map[string]string) error
 	
 	// Load loads content for use in templates
-	Load(contentPath string) (interface{}, error)
+	Load() (interface{}, error)
 	
 	// TemplateName returns the name of the template to use for displaying this content
 	TemplateName() string
-}
-
-// contentTypes holds the registered content types
-var contentTypes = make(map[string]ContentType)
-
-// RegisterContentType registers a new content type with GGI
-func RegisterContentType(ct ContentType) {
-	contentTypes[ct.Name()] = ct
-}
-
-// GetContentType returns the content type with the given name
-func GetContentType(name string) (ContentType, bool) {
-	ct, exists := contentTypes[name]
-	return ct, exists
-}
-
-// GetAllContentTypes returns all registered content types
-func GetAllContentTypes() map[string]ContentType {
-	return contentTypes
 }
 
 // BuildConfig holds the configuration for the build process
