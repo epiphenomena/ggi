@@ -46,40 +46,72 @@ func (a *AdminServer) handleGetRequest(queryString string) {
 	}
 }
 
-// handlePostRequest handles POST requests to update data files
-func (a *AdminServer) handlePostRequest(queryString string) {
-	// For POST requests, we need to read from stdin
-	contentLengthStr := os.Getenv("CONTENT_LENGTH")
-	if contentLengthStr != "" {
-		// Parse content length and read form data
-		// This is a simplified implementation
-		// In a real CGI script, we would parse the form data properly
-		fmt.Println("Content-Type: text/html")
-		fmt.Println("")
-		fmt.Println("<html><body>")
-		fmt.Println("<h1>Form Processing</h1>")
-		fmt.Printf("<p>Processing form data for: %s</p>", queryString)
-		fmt.Println("<p>Form processing not fully implemented in this example.</p>")
-		fmt.Println("</body></html>")
-		return
-	}
-
-	// Show success message and rebuild site
+// handleJSONPostRequest handles POST requests for JSON files
+func (a *AdminServer) handleJSONPostRequest(filePath string, queryString string) {
+	// For this implementation, we'll show a message since proper form parsing
+	// in a CGI context would require more complex handling
 	fmt.Println("Content-Type: text/html")
 	fmt.Println("")
 	fmt.Println("<html><body>")
-	fmt.Println("<h1>Success</h1>")
-	fmt.Println("<p>Data updated successfully!</p>")
-	
-	// Trigger site rebuild
-	if err := Build(); err != nil {
-		fmt.Printf("<p>Error rebuilding site: %v</p>", err)
+	fmt.Println("<h1>JSON Form Processing</h1>")
+	fmt.Printf("<p>Processing JSON form data for: %s</p>", filePath)
+	fmt.Println("<p>JSON form processing would update the file with individual field values.</p>")
+	fmt.Println("</body></html>")
+}
+
+// handlePostRequest handles POST requests to update data files
+func (a *AdminServer) handlePostRequest(queryString string) {
+	// Get the filename from query string
+	var fileName string
+	if strings.HasPrefix(queryString, "file=") {
+		fileName = strings.TrimPrefix(queryString, "file=")
 	} else {
-		fmt.Println("<p>Site rebuilt successfully!</p>")
+		fileName = queryString
 	}
 	
-	fmt.Println("<a href='/admin.cgi'>Back to Admin Home</a>")
-	fmt.Println("</body></html>")
+	filePath := filepath.Join("public", "data", fileName)
+	fileType := getFileType(fileName)
+	
+	if fileType == "json" {
+		// For now, we'll handle JSON the same way, but in a real implementation
+		// we would parse the individual form fields and rebuild the JSON
+		// For a complete implementation, we'd need to process each field individually
+		// and reconstruct the JSON object
+		a.handleJSONPostRequest(filePath, queryString)
+	} else {
+		// Handle content as a single field for non-JSON files
+		contentLengthStr := os.Getenv("CONTENT_LENGTH")
+		if contentLengthStr != "" {
+			// Parse content length and read form data
+			// This is a simplified implementation
+			// In a real CGI script, we would parse the form data properly
+			fmt.Println("Content-Type: text/html")
+			fmt.Println("")
+			fmt.Println("<html><body>")
+			fmt.Println("<h1>Form Processing</h1>")
+			fmt.Printf("<p>Processing form data for: %s</p>", queryString)
+			fmt.Println("<p>Form processing not fully implemented in this example.</p>")
+			fmt.Println("</body></html>")
+			return
+		}
+		
+		// Show success message and rebuild site
+		fmt.Println("Content-Type: text/html")
+		fmt.Println("")
+		fmt.Println("<html><body>")
+		fmt.Println("<h1>Success</h1>")
+		fmt.Println("<p>Data updated successfully!</p>")
+		
+		// Trigger site rebuild
+		if err := Build(); err != nil {
+			fmt.Printf("<p>Error rebuilding site: %v</p>", err)
+		} else {
+			fmt.Println("<p>Site rebuilt successfully!</p>")
+		}
+		
+		fmt.Println("<a href='/admin.cgi'>Back to Admin Home</a>")
+		fmt.Println("</body></html>")
+	}
 }
 
 // showAdminHome displays the admin home page
@@ -196,16 +228,16 @@ func (a *AdminServer) showEditForm(queryString string) {
     `, fileName, fileName, queryString)
 	
 	if fileType == "json" {
-		// Pretty-print JSON for editing
-		var prettyJSON map[string]interface{}
-		if err := json.Unmarshal(content, &prettyJSON); err == nil {
-			prettyContent, err := json.MarshalIndent(prettyJSON, "", "  ")
-			if err == nil {
-				content = prettyContent
-			}
+		// Generate form inputs for JSON data
+		var jsonData map[string]interface{}
+		if err := json.Unmarshal(content, &jsonData); err == nil {
+			fmt.Println("<div class=\"json-form\">")
+			generateJSONForm(jsonData, "")
+			fmt.Println("</div>")
+		} else {
+			// If JSON parsing fails, fall back to text area
+			fmt.Printf("<textarea name=\"content\">%s</textarea>", template.HTMLEscapeString(string(content)))
 		}
-		
-		fmt.Printf("<textarea name=\"content\">%s</textarea>", template.HTMLEscapeString(string(content)))
 	} else if fileType == "media" {
 		// For media files, provide upload form
 		fmt.Printf(`
@@ -240,5 +272,75 @@ func getFileType(fileName string) string {
 		return "media"
 	default:
 		return "text"
+	}
+}
+
+// generateJSONForm generates HTML form inputs for JSON data
+func generateJSONForm(data map[string]interface{}, prefix string) {
+	for key, value := range data {
+		fieldName := key
+		if prefix != "" {
+			fieldName = prefix + "." + key
+		}
+		
+		switch v := value.(type) {
+		case string:
+			fmt.Printf("<div class=\"form-field\"><label for=\"%s\">%s:</label><input type=\"text\" id=\"%s\" name=\"%s\" value=\"%s\" /></div>\n", 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(key), 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(v))
+		case float64: // JSON numbers are unmarshaled as float64
+			fmt.Printf("<div class=\"form-field\"><label for=\"%s\">%s:</label><input type=\"number\" id=\"%s\" name=\"%s\" value=\"%g\" /></div>\n", 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(key), 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(fieldName), 
+				v)
+		case bool:
+			checked := ""
+			if v {
+				checked = "checked"
+			}
+			fmt.Printf("<div class=\"form-field\"><label for=\"%s\">%s:</label><input type=\"checkbox\" id=\"%s\" name=\"%s\" %s /></div>\n", 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(key), 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(fieldName), 
+				checked)
+		case map[string]interface{}:
+			fmt.Printf("<div class=\"form-section\"><h4>%s</h4>", template.HTMLEscapeString(key))
+			generateJSONForm(v, fieldName)
+			fmt.Println("</div>")
+		case []interface{}:
+			fmt.Printf("<div class=\"form-section\"><h4>%s (Array)</h4>", template.HTMLEscapeString(key))
+			for i, arrItem := range v {
+				itemName := fmt.Sprintf("%s[%d]", fieldName, i)
+				if str, ok := arrItem.(string); ok {
+					fmt.Printf("<div class=\"form-field\"><label>Item %d:</label><input type=\"text\" name=\"%s\" value=\"%s\" /></div>\n", 
+						i, template.HTMLEscapeString(itemName), template.HTMLEscapeString(str))
+				} else if m, ok := arrItem.(map[string]interface{}); ok {
+					fmt.Printf("<div class=\"form-field\"><h5>Item %d:</h5>", i)
+					generateJSONForm(m, itemName)
+					fmt.Println("</div>")
+				} else {
+					// For other types in arrays, convert to string
+					itemStr := fmt.Sprintf("%v", arrItem)
+					fmt.Printf("<div class=\"form-field\"><label>Item %d:</label><input type=\"text\" name=\"%s\" value=\"%s\" /></div>\n", 
+						i, template.HTMLEscapeString(itemName), template.HTMLEscapeString(itemStr))
+				}
+			}
+			fmt.Println("</div>")
+		default:
+			// For other types, convert to string
+			str := fmt.Sprintf("%v", v)
+			fmt.Printf("<div class=\"form-field\"><label for=\"%s\">%s:</label><input type=\"text\" id=\"%s\" name=\"%s\" value=\"%s\" /></div>\n", 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(key), 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(fieldName), 
+				template.HTMLEscapeString(str))
+		}
 	}
 }

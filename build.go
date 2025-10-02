@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -16,6 +17,9 @@ var siteTemplates embed.FS
 
 //go:embed site/css/*
 var siteCSS embed.FS
+
+//go:embed site/js/*
+var siteJS embed.FS
 
 
 
@@ -45,6 +49,7 @@ func copyEmbeddedAssets() error {
 		destDir  string
 	}{
 		{siteCSS, "site/css", "public/css"},
+		{siteJS, "site/js", "public/js"},
 	}
 
 	for _, assetPath := range assetPaths {
@@ -111,48 +116,63 @@ func processTemplates() error {
 		}
 	}
 
-	// Load data from all JSON files
+	// Load data from all JSON and markdown files
 	allData := make(map[string]interface{})
 	if dataFiles != nil {
 		for _, file := range dataFiles {
-			if !file.IsDir() && strings.HasSuffix(file.Name(), ".json") {
+			if !file.IsDir() {
 				filePath := filepath.Join(dataDir, file.Name())
-				jsonData, err := loadDataFile(filePath)
-				if err != nil {
-					fmt.Printf("Warning: could not load data file %s: %v\n", filePath, err)
-					continue
+				ext := strings.ToLower(filepath.Ext(file.Name()))
+				
+				switch ext {
+				case ".json":
+					jsonData, err := loadDataFile(filePath)
+					if err != nil {
+						fmt.Printf("Warning: could not load data file %s: %v\n", filePath, err)
+						continue
+					}
+					key := strings.TrimSuffix(file.Name(), ".json")
+					allData[key] = jsonData
+				case ".md", ".markdown":
+					markdownContent, err := os.ReadFile(filePath)
+					if err != nil {
+						fmt.Printf("Warning: could not load markdown file %s: %v\n", filePath, err)
+						continue
+					}
+					key := strings.TrimSuffix(file.Name(), ext)
+					// Convert markdown to HTML
+					htmlContent := processMarkdown(string(markdownContent))
+					allData[key+"HTML"] = template.HTML(htmlContent)
+					// Also make raw content available
+					allData[key] = string(markdownContent)
 				}
-				key := strings.TrimSuffix(file.Name(), ".json")
-				allData[key] = jsonData
 			}
 		}
 	}
 
-	// Use data from JSON files, with fallback to defaults
-	siteData, hasSiteData := allData["site"].(map[string]interface{})
-	exampleData, hasExampleData := allData["example"].(map[string]interface{})
-	
-	// Use site.json data if available, otherwise example.json, otherwise defaults
-	if hasSiteData {
+	// Use data from site.json, with fallback to defaults
+	if siteData, ok := allData["site"].(map[string]interface{}); ok {
 		allData["SiteTitle"] = getFromData(siteData, "siteTitle", "GGI Sample Site")
 		allData["WelcomeText"] = getFromData(siteData, "welcomeText", "Welcome to our website!")
 		allData["CurrentYear"] = getFromData(siteData, "currentYear", "2025")
-		allData["aboutText"] = getFromData(siteData, "aboutText", "")
+		allData["heroImage"] = getFromData(siteData, "heroImage", "")
 		allData["portfolio"] = getFromData(siteData, "portfolio", []interface{}{})
 		allData["ContactInfo"] = getFromData(siteData, "contactInfo", nil)
-	} else if hasExampleData {
-		allData["SiteTitle"] = getFromData(exampleData, "siteTitle", "GGI Sample Site")
-		allData["WelcomeText"] = getFromData(exampleData, "welcomeText", "Welcome to our website!")
-		allData["CurrentYear"] = getFromData(exampleData, "currentYear", "2025")
-		allData["aboutText"] = getFromData(exampleData, "aboutText", "")
-		allData["portfolio"] = getFromData(exampleData, "portfolio", []interface{}{})
-		allData["ContactInfo"] = getFromData(exampleData, "contactInfo", nil)
 	} else {
 		allData["SiteTitle"] = "GGI Sample Site"
 		allData["WelcomeText"] = "Welcome to our website!"
 		allData["CurrentYear"] = "2025"
-		allData["aboutText"] = ""
+		allData["heroImage"] = ""
 		allData["portfolio"] = []interface{}{}
+	}
+	
+	// Use about content from about.md if it exists, otherwise fallback to site.json
+	if _, exists := allData["about"]; exists {
+		allData["aboutText"] = allData["aboutHTML"]
+	} else if siteData, ok := allData["site"].(map[string]interface{}); ok {
+		allData["aboutText"] = getFromData(siteData, "aboutText", "")
+	} else {
+		allData["aboutText"] = ""
 	}
 
 	// Find all template files
@@ -166,7 +186,7 @@ func processTemplates() error {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tmpl") {
 			templatePath := filepath.Join("site/templates", entry.Name())
 			outputPath := filepath.Join("public", strings.TrimSuffix(entry.Name(), ".tmpl")+".html")
-
+			
 			if err := renderTemplate(templatePath, outputPath, allData); err != nil {
 				return fmt.Errorf("error rendering template %s: %v", templatePath, err)
 			}
@@ -194,16 +214,29 @@ func loadDataFile(filePath string) (map[string]interface{}, error) {
 
 // renderTemplate renders a template with provided data and saves to output file
 func renderTemplate(templatePath, outputPath string, data map[string]interface{}) error {
-	// Read the template content from embedded filesystem
-	tmplContent, err := siteTemplates.ReadFile(templatePath)
+	// Read all template files to parse them together
+	entries, err := fs.ReadDir(siteTemplates, "site/templates")
 	if err != nil {
 		return err
 	}
 
-	// Parse the template
-	tmpl, err := template.New(filepath.Base(templatePath)).Parse(string(tmplContent))
-	if err != nil {
-		return err
+	// Create a new template
+	tmpl := template.New(filepath.Base(templatePath))
+	
+	// Parse all templates together to enable template inclusion
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tmpl") {
+			templatePath := filepath.Join("site/templates", entry.Name())
+			content, err := siteTemplates.ReadFile(templatePath)
+			if err != nil {
+				return err
+			}
+			
+			_, err = tmpl.Parse(string(content))
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	// Create the output file
@@ -213,8 +246,136 @@ func renderTemplate(templatePath, outputPath string, data map[string]interface{}
 	}
 	defer outputFile.Close()
 
-	// Execute the template with data
-	return tmpl.Execute(outputFile, data)
+	// Create the content to be inserted
+	contentContent, err := siteTemplates.ReadFile(templatePath)
+	if err != nil {
+		return err
+	}
+
+	// Instead of executing a template with a name, we'll insert the content into the base template
+	baseContent, err := siteTemplates.ReadFile("site/templates/base.tmpl")
+	if err != nil {
+		return err
+	}
+
+	// Combine by replacing {{.Content}} in base with the actual content
+	combinedTemplateStr := strings.Replace(string(baseContent), "{{.Content}}", string(contentContent), 1)
+
+	// Parse and execute the combined template
+	combinedTmpl, err := template.New("combined").Parse(combinedTemplateStr)
+	if err != nil {
+		return err
+	}
+
+	// Execute the combined template with data
+	return combinedTmpl.Execute(outputFile, data)
+}
+
+// Clean removes build artifacts from the public folder, keeping only data and admin.cgi
+func Clean() error {
+	publicDir := "public"
+	entries, err := os.ReadDir(publicDir)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		// Skip the data directory and admin.cgi file
+		if entry.Name() == "data" || entry.Name() == "admin.cgi" || entry.Name() == ".htaccess" {
+			continue
+		}
+
+		// Remove everything else
+		entryPath := filepath.Join(publicDir, entry.Name())
+		if err := os.RemoveAll(entryPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// processMarkdown performs basic markdown conversion to HTML
+func processMarkdown(md string) string {
+	// Split content into lines for processing
+	lines := strings.Split(md, "\n")
+	var htmlParts []string
+	
+	i := 0
+	for i < len(lines) {
+		trimmedLine := strings.TrimSpace(lines[i])
+		
+		// Check for headers
+		if strings.HasPrefix(trimmedLine, "# ") {
+			// H1 header
+			content := strings.TrimPrefix(trimmedLine, "# ")
+			htmlParts = append(htmlParts, "<h1>"+content+"</h1>")
+			i++
+		} else if strings.HasPrefix(trimmedLine, "## ") {
+			// H2 header
+			content := strings.TrimPrefix(trimmedLine, "## ")
+			htmlParts = append(htmlParts, "<h2>"+content+"</h2>")
+			i++
+		} else if strings.HasPrefix(trimmedLine, "### ") {
+			// H3 header
+			content := strings.TrimPrefix(trimmedLine, "### ")
+			htmlParts = append(htmlParts, "<h3>"+content+"</h3>")
+			i++
+		} else {
+			// Collect all consecutive non-header lines as a paragraph
+			var paragraphLines []string
+			for i < len(lines) {
+				currentLine := lines[i]
+				trimmedCurrent := strings.TrimSpace(currentLine)
+				
+				// Check if this line is a header
+				if strings.HasPrefix(trimmedCurrent, "# ") || 
+				   strings.HasPrefix(trimmedCurrent, "## ") || 
+				   strings.HasPrefix(trimmedCurrent, "### ") {
+					break
+				}
+				
+				// Process markdown elements within the line
+				processedLine := currentLine
+				// Convert bold (**text** -> <strong>text</strong>)
+				reBold := regexp.MustCompile(`\*\*(.*?)\*\*`)
+				processedLine = reBold.ReplaceAllString(processedLine, "<strong>$1</strong>")
+				
+				// Convert italic (*text* -> <em>text</em>)
+				reItalic := regexp.MustCompile(`\*(.*?)\*`)
+				processedLine = reItalic.ReplaceAllString(processedLine, "<em>$1</em>")
+				
+				// Convert links ([text](url) -> <a href="url">text</a>)
+				reLink := regexp.MustCompile(`\[(.*?)\]\((.*?)\)`)
+				processedLine = reLink.ReplaceAllString(processedLine, `<a href="$2">$1</a>`)
+				
+				// Convert image ![](url) -> <img src="url" />
+				reImage := regexp.MustCompile(`!\[.*?\]\((.*?)\)`)
+				processedLine = reImage.ReplaceAllString(processedLine, `<img src="$1" alt="" />`)
+				
+				paragraphLines = append(paragraphLines, processedLine)
+				i++
+				
+				// If the next line is empty, we've reached the end of this paragraph
+				if i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+					break
+				}
+			}
+			
+			// Join paragraph lines with <br> tags and wrap in <p>
+			if len(paragraphLines) > 0 {
+				paragraphContent := strings.Join(paragraphLines, "<br />")
+				htmlParts = append(htmlParts, "<p>"+paragraphContent+"</p>")
+			}
+			
+			// Skip the empty line that ends the paragraph
+			if i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+				i++
+			}
+		}
+	}
+	
+	return strings.Join(htmlParts, "\n")
 }
 
 // getFromData safely gets a value from a data map with a fallback

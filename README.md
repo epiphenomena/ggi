@@ -57,7 +57,9 @@ As an example:
   - watches all of the relevant files and rebuilds both the admin.cgi and public site on change
   - serves all of the static files in public
   - calls the admin.cgi script as a CGI script with appropriate env variables set and stdin data as needed
+- Calling with cli arg `build` to build the static site from templates and data files
 - Calling with cli arg `fastcgi` to start a fastcgi compatible server that handles requests just like the cgi
+- Calling with cli arg `clean` to clean the public folder of build artifacts
 - Calling with no cli args as a cgi script that:
   - responds to GET with no query args -> the home page of the admin ui that provides links for accessing the forms to edit the files in ./data
   - responds to GET with query indicating a ./data/* file -> a form to edit and submit changes to that file

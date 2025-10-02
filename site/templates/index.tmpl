@@ -1,22 +1,4 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>{{.SiteTitle}}</title>
-    <link rel="stylesheet" href="/css/site.css">
-</head>
-<body>
-    <header>
-        <h1>{{.SiteTitle}}</h1>
-        <nav>
-            <a href="/">Home</a>
-            <a href="/about">About</a>
-            <a href="/portfolio">Portfolio</a>
-            <a href="/contact">Contact</a>
-        </nav>
-    </header>
-
-    <main>
-        <section class="hero">
+        <section class="hero" {{if .heroImage}}style="background-image: url('{{.heroImage}}'); background-size: cover; background-position: center; padding: 100px 20px; color: white; text-align: center;"{{end}}>
             <h2>Welcome to {{.SiteTitle}}</h2>
             <p>{{.WelcomeText}}</p>
         </section>
@@ -24,7 +6,7 @@
         {{if .aboutText}}
         <section class="about">
             <h3>About Us</h3>
-            <p>{{.aboutText}}</p>
+            <div class="about-content">{{.aboutText}}</div>
         </section>
         {{end}}
 
@@ -42,15 +24,3 @@
             </div>
         </section>
         {{end}}
-    </main>
-
-    <footer>
-        <p>&copy; {{.CurrentYear}} {{.SiteTitle}}. All rights reserved.</p>
-        {{if .ContactInfo}}
-        <p>Contact: {{.ContactInfo.email}}, {{.ContactInfo.phone}}</p>
-        {{end}}
-    </footer>
-
-    <script src="/js/site.js"></script>
-</body>
-</html>

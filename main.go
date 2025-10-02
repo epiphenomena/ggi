@@ -8,12 +8,15 @@ import (
 	"os"
 )
 
+const devServerPort = "8082"
+
 var adminServer *AdminServer
 
 func main() {
 	serve := flag.Bool("serve", false, "Run development server")
 	fastcgi := flag.Bool("fastcgi", false, "Run FastCGI server")
 	build := flag.Bool("build", false, "Build the static site")
+	clean := flag.Bool("clean", false, "Clean the public folder of build artifacts")
 	flag.Parse()
 
 	// Initialize admin server
@@ -32,6 +35,13 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Build completed successfully!")
+	} else if *clean {
+		fmt.Println("Cleaning public folder...")
+		if err := Clean(); err != nil {
+			fmt.Printf("Error cleaning: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Clean completed successfully!")
 	} else {
 		// Run as CGI script
 		fmt.Println("Running as CGI script...")
@@ -71,9 +81,8 @@ func startDevServer() {
 		}
 	})
 
-	port := "8080"
-	fmt.Printf("Development server starting on :%s\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	fmt.Printf("Development server starting on :%s\n", devServerPort)
+	log.Fatal(http.ListenAndServe(":"+devServerPort, nil))
 }
 
 // startFastCGIServer starts the FastCGI server
