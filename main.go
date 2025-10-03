@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -93,10 +94,18 @@ func startDevServer() {
 			"SERVER_PORT="+devServerPort,
 		)
 
+		// Get the absolute path to the admin.cgi binary
+		absPath, err := filepath.Abs("public/admin.cgi")
+		if err != nil {
+			http.Error(w, "Failed to get absolute path: "+err.Error(), 500)
+			return
+		}
+
 		// Create the command
-		cmd := exec.Command("./public/admin.cgi")
+		cmd := exec.Command(absPath)
 		cmd.Env = env
-		cmd.Dir = "public"
+		// Run from the project root directory to maintain consistency
+		cmd.Dir = "."
 
 		// Capture the output
 		output, err := cmd.CombinedOutput()
