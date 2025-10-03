@@ -21,13 +21,13 @@ end
 # Clean the public folder
 desc "Clean the public folder of build artifacts"
 task :clean => :cgi do
-  sh "go run *.go --clean"
+  sh "public/admin.cgi --clean"
 end
 
 # Build and run the development server
 desc "Run the development server"
 task :serve => :build do
-  sh "go run *.go --serve"
+  sh "public/admin.cgi --serve"
 end
 
 # Build and run a test of the CGI script
@@ -42,7 +42,7 @@ end
 # Run the build command
 desc "Build the static site"
 task :site => :cgi do
-  sh "go run *.go --build"
+  sh "public/admin.cgi --build"
 end
 
 # Run all commands in sequence
