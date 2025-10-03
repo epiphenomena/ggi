@@ -3,7 +3,7 @@
   "welcomeText": "Welcome to my business website!",
   "currentYear": "2025",
   "aboutText": "We are a small business dedicated to providing excellent service to our customers.",
-  "heroImage": "/data/hero.jpg",
+  "heroImage": "/media/hero.jpg",
   "contactInfo": {
     "email": "contact@mybusiness.com",
     "phone": "+1-555-1234",
@@ -13,12 +13,12 @@
     {
       "title": "Project 1",
       "description": "Description of project 1",
-      "image": "/data/project1.jpg"
+      "image": "/media/project1.jpg"
     },
     {
       "title": "Project 2", 
       "description": "Description of project 2",
-      "image": "/data/project2.jpg"
+      "image": "/media/project2.jpg"
     }
   ]
 }

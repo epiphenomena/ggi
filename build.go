@@ -175,6 +175,11 @@ func processTemplates() error {
 		allData["aboutText"] = ""
 	}
 
+	// Copy media files from data directory to public/media directory
+	if err := copyMediaFiles(); err != nil {
+		return fmt.Errorf("error copying media files: %v", err)
+	}
+
 	// Find all template files
 	entries, err := fs.ReadDir(siteTemplates, "site/templates")
 	if err != nil {
@@ -196,6 +201,57 @@ func processTemplates() error {
 	return nil
 }
 
+// copyMediaFiles copies media files from public/data to public/media so they can be served
+func copyMediaFiles() error {
+	dataDir := "public/data"
+	mediaDir := "public/media"
+	
+	// Create media directory if it doesn't exist
+	if err := os.MkdirAll(mediaDir, 0755); err != nil {
+		return err
+	}
+	
+	// Get all files in data directory
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		return err
+	}
+	
+	// Define media file extensions
+	mediaExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, 
+		".webp": true, ".svg": true, ".ico": true, ".mp4": true, 
+		".webm": true, ".pdf": true, ".mp3": true, ".wav": true,
+	}
+	
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			ext := strings.ToLower(filepath.Ext(entry.Name()))
+			if mediaExts[ext] {
+				srcPath := filepath.Join(dataDir, entry.Name())
+				dstPath := filepath.Join(mediaDir, entry.Name())
+				
+				// Copy the file
+				if err := copyFile(srcPath, dstPath); err != nil {
+					return fmt.Errorf("error copying media file %s: %v", entry.Name(), err)
+				}
+			}
+		}
+	}
+	
+	return nil
+}
+
+// copyFile copies a file from source to destination
+func copyFile(src, dst string) error {
+	content, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	
+	return os.WriteFile(dst, content, 0644)
+}
+
 // loadDataFile loads data from a JSON file
 func loadDataFile(filePath string) (map[string]interface{}, error) {
 	data := make(map[string]interface{})
@@ -214,29 +270,16 @@ func loadDataFile(filePath string) (map[string]interface{}, error) {
 
 // renderTemplate renders a template with provided data and saves to output file
 func renderTemplate(templatePath, outputPath string, data map[string]interface{}) error {
-	// Read all template files to parse them together
-	entries, err := fs.ReadDir(siteTemplates, "site/templates")
+	// Read the template content from embedded filesystem
+	tmplContent, err := siteTemplates.ReadFile(templatePath)
 	if err != nil {
 		return err
 	}
 
-	// Create a new template
-	tmpl := template.New(filepath.Base(templatePath))
-	
-	// Parse all templates together to enable template inclusion
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".tmpl") {
-			templatePath := filepath.Join("site/templates", entry.Name())
-			content, err := siteTemplates.ReadFile(templatePath)
-			if err != nil {
-				return err
-			}
-			
-			_, err = tmpl.Parse(string(content))
-			if err != nil {
-				return err
-			}
-		}
+	// Parse the template
+	tmpl, err := template.New(filepath.Base(templatePath)).Parse(string(tmplContent))
+	if err != nil {
+		return err
 	}
 
 	// Create the output file
@@ -246,29 +289,8 @@ func renderTemplate(templatePath, outputPath string, data map[string]interface{}
 	}
 	defer outputFile.Close()
 
-	// Create the content to be inserted
-	contentContent, err := siteTemplates.ReadFile(templatePath)
-	if err != nil {
-		return err
-	}
-
-	// Instead of executing a template with a name, we'll insert the content into the base template
-	baseContent, err := siteTemplates.ReadFile("site/templates/base.tmpl")
-	if err != nil {
-		return err
-	}
-
-	// Combine by replacing {{.Content}} in base with the actual content
-	combinedTemplateStr := strings.Replace(string(baseContent), "{{.Content}}", string(contentContent), 1)
-
-	// Parse and execute the combined template
-	combinedTmpl, err := template.New("combined").Parse(combinedTemplateStr)
-	if err != nil {
-		return err
-	}
-
-	// Execute the combined template with data
-	return combinedTmpl.Execute(outputFile, data)
+	// Execute the template with data
+	return tmpl.Execute(outputFile, data)
 }
 
 // Clean removes build artifacts from the public folder, keeping only data and admin.cgi

@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
+	"strings"
 )
 
 const devServerPort = "8082"
@@ -70,14 +72,61 @@ func startDevServer() {
 
 	// Handle admin CGI requests
 	http.HandleFunc("/admin.cgi", func(w http.ResponseWriter, r *http.Request) {
-		// Simulate CGI processing for development
-		queryString := r.URL.Query().Encode()
-		if r.Method == "POST" {
-			// For dev mode, we'll just show a form processing page
-			fmt.Fprint(w, "<html><body><h1>Form Submitted</h1><p>This would process your form in CGI mode</p><a href='/admin.cgi'>Back to Admin</a></body></html>")
+		// Build the admin.cgi binary first if it doesn't exist
+		if _, err := os.Stat("public/admin.cgi"); os.IsNotExist(err) {
+			cmd := exec.Command("go", "build", "-o", "public/admin.cgi", ".")
+			if err := cmd.Run(); err != nil {
+				http.Error(w, "Failed to build admin.cgi: "+err.Error(), 500)
+				return
+			}
+		}
+
+		// Set up environment variables for CGI
+		env := append(os.Environ(),
+			"REQUEST_METHOD="+r.Method,
+			"QUERY_STRING="+r.URL.RawQuery,
+			"SCRIPT_NAME=/admin.cgi",
+			"SERVER_PROTOCOL="+r.Proto,
+			"HTTP_HOST="+r.Host,
+			"SERVER_SOFTWARE=GGI-Dev-Server",
+			"SERVER_NAME=localhost",
+			"SERVER_PORT="+devServerPort,
+		)
+
+		// Create the command
+		cmd := exec.Command("./public/admin.cgi")
+		cmd.Env = env
+		cmd.Dir = "public"
+
+		// Capture the output
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			http.Error(w, "CGI script error: "+err.Error()+"\nOutput: "+string(output), 500)
+			return
+		}
+
+		// Write the output to the HTTP response
+		// Parse the headers from the CGI output
+		responseStr := string(output)
+		
+		// Find the end of headers (double newline)
+		parts := strings.SplitN(responseStr, "\r\n\r\n", 2)
+		if len(parts) == 2 {
+			// Parse headers
+			headers := strings.Split(parts[0], "\r\n")
+			for _, header := range headers {
+				if colonIndex := strings.Index(header, ":"); colonIndex > 0 {
+					headerName := strings.TrimSpace(header[:colonIndex])
+					headerValue := strings.TrimSpace(header[colonIndex+1:])
+					w.Header().Set(headerName, headerValue)
+				}
+			}
+			// Write the body
+			fmt.Fprint(w, parts[1])
 		} else {
-			// Serve the admin home page
-			fmt.Fprint(w, "<html><body><h1>Development Admin Interface</h1><p>Query: "+queryString+"</p><p>This simulates the admin interface in development mode.</p><a href='/admin.cgi'>Admin Home</a></body></html>")
+			// If no headers, just write the content with a default content type
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, responseStr)
 		}
 	})
 
