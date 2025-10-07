@@ -1,0 +1,18 @@
+# Build artifacts
+public/css/
+public/js/
+public/media/
+public/*.html
+
+# Generated admin CGI
+public/admin.cgi
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db

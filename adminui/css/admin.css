@@ -131,6 +131,74 @@ input[type="submit"]:hover {
     color: white;
 }
 
+/* Array manipulation styles */
+.array-section {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 20px;
+    background-color: #f8f9fa;
+}
+
+.array-section h4 {
+    margin-top: 0;
+    color: #007cba;
+}
+
+.array-add-btn {
+    background-color: #28a745;
+    color: white;
+    padding: 5px 10px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 15px;
+}
+
+.array-add-btn:hover {
+    background-color: #218838;
+}
+
+.array-item {
+    border: 1px solid #e9ecef;
+    border-radius: 3px;
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: #fff;
+}
+
+.array-item-controls {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 10px;
+}
+
+.array-move-up-btn,
+.array-move-down-btn,
+.array-remove-btn {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.array-move-up-btn:hover,
+.array-move-down-btn:hover {
+    background-color: #5a6268;
+}
+
+.array-remove-btn {
+    background-color: #dc3545;
+}
+
+.array-remove-btn:hover {
+    background-color: #c82333;
+}
+
 @media (max-width: 768px) {
     body {
         padding: 10px;
@@ -150,5 +218,9 @@ input[type="submit"]:hover {
     .file-actions {
         width: 100%;
         justify-content: flex-end;
+    }
+    
+    .array-item-controls {
+        flex-wrap: wrap;
     }
 }
